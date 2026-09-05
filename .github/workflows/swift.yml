@@ -63,3 +63,55 @@ jobs:
             -scheme BrainCamp \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             CODE_SIGNING_ALLOWED=NO
+
+  build-ipa:
+    needs: build-and-test
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      # No signing certificate/provisioning profile is configured, so this
+      # produces an UNSIGNED .app for a real device (not the simulator).
+      # That's intentional: sideloading tools like Sideloadly/AltStore strip
+      # and re-sign whatever .ipa they're given using your own (free) Apple
+      # ID, so shipping it unsigned from CI — rather than wiring up paid
+      # Apple Developer Program secrets — is the zero-cost path to testing
+      # on a real iPhone without a Mac available to build/run locally.
+      - name: Build unsigned app for a real device
+        run: |
+          xcodebuild build \
+            -project BrainCamp.xcodeproj \
+            -scheme BrainCamp \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            EXPANDED_CODE_SIGN_IDENTITY=""
+
+      - name: Package as .ipa
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/BrainCamp.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Expected app bundle not found at $APP_PATH" >&2
+            find build/Build/Products -maxdepth 2 >&2
+            exit 1
+          fi
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r -y BrainCamp.ipa Payload
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BrainCamp-unsigned-ipa
+          path: BrainCamp.ipa
+          retention-days: 14
