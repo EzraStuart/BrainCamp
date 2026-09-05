@@ -31,6 +31,7 @@ final class Reminder {
     // MARK: Location trigger
     /// `.nullify` on delete: a location reminder whose place was removed is
     /// treated as disabled/misconfigured until the user assigns a new place.
+    @Relationship(deleteRule: .nullify)
     var place: Place?
     var geofenceEvent: GeofenceEvent?
 

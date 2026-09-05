@@ -1,7 +1,12 @@
-# This workflow will build a Swift project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-swift
+# Builds and tests BrainCamp, an iOS app (SwiftUI/SwiftData/CoreLocation/MapKit).
+# There's no Package.swift here — this isn't a Swift package, so plain
+# `swift build`/`swift test` have nothing to build against. Instead, mirror
+# what the README has you do locally: generate the Xcode project with
+# XcodeGen, then build/test it with xcodebuild against an iOS Simulator
+# destination (Apple's UI frameworks don't exist outside the Xcode toolchain,
+# so this must run on a macOS runner).
 
-name: Swift
+name: iOS
 
 on:
   push:
@@ -10,13 +15,51 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
-
+  build-and-test:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Pick an available iOS Simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j \
+            | jq -r '.devices
+                | to_entries
+                | map(select(.key | test("iOS")))
+                | sort_by(.key)
+                | last
+                | .value[0].udid')
+          if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
+            echo "No available iOS simulator found" >&2
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator UDID: $UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project BrainCamp.xcodeproj \
+            -scheme BrainCamp \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project BrainCamp.xcodeproj \
+            -scheme BrainCamp \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO

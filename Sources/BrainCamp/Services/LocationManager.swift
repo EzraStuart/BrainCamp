@@ -107,14 +107,13 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 
     private func fetchEnabledLocationReminders() -> [Reminder] {
         let descriptor = FetchDescriptor<Reminder>(
-            predicate: #Predicate { $0.isEnabled && $0.triggerType == TriggerType.location }
+            predicate: #Predicate<Reminder> { $0.isEnabled && $0.triggerType == TriggerType.location }
         )
         return (try? context.fetch(descriptor)) ?? []
     }
 
-    /// Ranks by: highest importance of the item(s) a reminder protects at
-    /// this place → proximity to the last known location → most recently
-    /// created reminder (stable tiebreaker).
+    /// Builds candidates and delegates the actual ordering to `RegionPriority`
+    /// (a pure function, unit-tested separately).
     private func rankedCandidatePlaces(from reminders: [Reminder]) -> [Place] {
         var bestImportance: [UUID: Importance] = [:]
         var placesByID: [UUID: Place] = [:]
@@ -132,21 +131,20 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             }
         }
 
-        return placesByID.values.sorted { lhs, rhs in
-            let lhsImportance = bestImportance[lhs.id] ?? .low
-            let rhsImportance = bestImportance[rhs.id] ?? .low
-            if lhsImportance != rhsImportance { return lhsImportance.rawValue > rhsImportance.rawValue }
-
-            if let current = lastKnownLocation {
-                let lhsDistance = current.distance(from: CLLocation(latitude: lhs.latitude, longitude: lhs.longitude))
-                let rhsDistance = current.distance(from: CLLocation(latitude: rhs.latitude, longitude: rhs.longitude))
-                if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+        let candidates = placesByID.values.map { place -> RegionPriority.Candidate in
+            let distance = lastKnownLocation.map {
+                $0.distance(from: CLLocation(latitude: place.latitude, longitude: place.longitude))
             }
-
-            let lhsDate = mostRecentReminderDate[lhs.id] ?? .distantPast
-            let rhsDate = mostRecentReminderDate[rhs.id] ?? .distantPast
-            return lhsDate > rhsDate
+            return RegionPriority.Candidate(
+                id: place.id,
+                importance: bestImportance[place.id] ?? .low,
+                distanceMeters: distance,
+                mostRecentReminderDate: mostRecentReminderDate[place.id] ?? .distantPast
+            )
         }
+
+        let orderedIDs = RegionPriority.rank(candidates)
+        return orderedIDs.compactMap { placesByID[$0] }
     }
 
     // MARK: - Region events
@@ -169,7 +167,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         guard let placeID = UUID(uuidString: region.identifier) else { return }
 
         let descriptor = FetchDescriptor<Reminder>(
-            predicate: #Predicate { $0.isEnabled && $0.triggerType == TriggerType.location }
+            predicate: #Predicate<Reminder> { $0.isEnabled && $0.triggerType == TriggerType.location }
         )
         guard let reminders = try? context.fetch(descriptor) else { return }
 

@@ -34,7 +34,6 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSLocationWhenInUseUsageDescription: "BrainCamp uses your location to remind you about items when you arrive at or leave a place you've designated for them, like home or the office."
         NSLocationAlwaysAndWhenInUseUsageDescription: "BrainCamp needs Always location access so it can remind you about important items even when the app isn't open — for example, catching your keys before you leave home."
-    scheme: {}
 
   BrainCampTests:
     type: bundle.unit-test
