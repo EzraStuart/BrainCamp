@@ -54,13 +54,16 @@ Requires:
 
 ## Known rough edges to watch for
 
-- SwiftData's `#Predicate` macro comparing a stored enum property to a
-  specific case (used throughout `LocationManager`/`NotificationManager`/
-  `RandomReminderScheduler` to filter reminders by `triggerType`) has had bugs
-  on early iOS 17.0 in some Xcode versions. If a `context.fetch(descriptor)`
-  call throws or silently returns nothing where you'd expect results, try a
-  newer iOS 17.x simulator runtime first before assuming the model/query
-  logic itself is wrong.
+- SwiftData's `#Predicate` macro will fail to *compile* (not just misbehave
+  at runtime) if you write a bare `EnumType.case` directly inside the
+  predicate closure — it mis-expands into an invalid key path
+  (`error: key path cannot refer to enum case '...'`). Every `#Predicate`
+  in this codebase that filters by `triggerType`/`scope` works around this
+  by capturing the enum case in a plain `let` outside the closure first
+  (see `locationTrigger` in `LocationManager.swift`, `randomTrigger` in
+  `RandomReminderScheduler.swift`, `globalScope` in
+  `GlobalReminderListView.swift`) — keep that pattern if you add more
+  enum-filtered queries.
 - Region monitoring is capped by iOS at 20 places per app; if you have more
   than 20 location-triggered reminders' worth of places, BrainCamp only
   actively monitors the top 20 (ranked by item importance, then proximity) —
