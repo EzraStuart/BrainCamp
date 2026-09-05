@@ -8,8 +8,8 @@ final class Place {
     var name: String
     var latitude: Double
     var longitude: Double
-    /// Geofence radius in meters. Clamped in the UI to
-    /// `CLLocationManager.maximumRegionMonitoringDistance`.
+    /// Geofence radius in meters. Clamped to a sensible fixed max in the UI
+    /// (see `PlacePickerMapView.maxRadius`).
     var radiusMeters: Double
     var createdAt: Date
 

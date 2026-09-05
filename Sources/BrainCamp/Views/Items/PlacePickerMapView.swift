@@ -15,7 +15,10 @@ struct PlacePickerMapView: View {
     @State private var searchResults: [MKMapItem] = []
     @State private var cameraPosition: MapCameraPosition
 
-    private let maxRadius = min(2000, CLLocationManager.maximumRegionMonitoringDistance)
+    // `maximumRegionMonitoringDistance` is an *instance* property (not
+    // static) and in practice reports a distance far larger than anything
+    // useful for a UI slider anyway, so just cap it at a sensible fixed value.
+    private let maxRadius: Double = 2000
     let existingPlace: Place?
     let onSave: (_ name: String, _ coordinate: CLLocationCoordinate2D, _ radiusMeters: Double) -> Void
 

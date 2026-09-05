@@ -11,8 +11,13 @@ import SwiftData
 /// monitored. Re-ranking runs on launch/foreground/relevant edits and on
 /// significant-location-change updates, so the monitored set follows the
 /// user instead of permanently favoring whichever 20 places were created first.
+// SwiftData's #Predicate macro mis-expands a bare `EnumType.case` written
+// directly inside the predicate closure into an invalid key path. Capturing
+// the case in a plain variable outside the closure works around it.
+private let locationTrigger = TriggerType.location
+
 @MainActor
-final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+final class LocationManager: NSObject, ObservableObject, @preconcurrency CLLocationManagerDelegate {
     static let maxMonitoredRegions = 20
 
     private let manager = CLLocationManager()
@@ -107,7 +112,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 
     private func fetchEnabledLocationReminders() -> [Reminder] {
         let descriptor = FetchDescriptor<Reminder>(
-            predicate: #Predicate<Reminder> { $0.isEnabled && $0.triggerType == TriggerType.location }
+            predicate: #Predicate<Reminder> { $0.isEnabled && $0.triggerType == locationTrigger }
         )
         return (try? context.fetch(descriptor)) ?? []
     }
@@ -167,7 +172,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         guard let placeID = UUID(uuidString: region.identifier) else { return }
 
         let descriptor = FetchDescriptor<Reminder>(
-            predicate: #Predicate<Reminder> { $0.isEnabled && $0.triggerType == TriggerType.location }
+            predicate: #Predicate<Reminder> { $0.isEnabled && $0.triggerType == locationTrigger }
         )
         guard let reminders = try? context.fetch(descriptor) else { return }
 

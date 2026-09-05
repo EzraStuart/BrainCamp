@@ -1,12 +1,17 @@
 import SwiftUI
 import SwiftData
 
+// SwiftData's #Predicate macro mis-expands a bare `EnumType.case` written
+// directly inside the predicate closure into an invalid key path. Capturing
+// the case in a plain variable outside the closure works around it.
+private let globalScope = ReminderScope.global
+
 struct GlobalReminderListView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var reminderCoordinator: ReminderCoordinator
 
     @Query(
-        filter: #Predicate<Reminder> { $0.scope == ReminderScope.global },
+        filter: #Predicate<Reminder> { $0.scope == globalScope },
         sort: \Reminder.createdAt,
         order: .reverse
     )

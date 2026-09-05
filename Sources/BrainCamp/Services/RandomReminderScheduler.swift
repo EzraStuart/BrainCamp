@@ -12,13 +12,18 @@ import UserNotifications
 /// around 3pm" would jitter on every app open, and regeneration couldn't tell
 /// an already-scheduled occurrence from a new one — causing needless
 /// cancel/reschedule churn against the 64-pending-notification cap.
+// SwiftData's #Predicate macro mis-expands a bare `EnumType.case` written
+// directly inside the predicate closure into an invalid key path. Capturing
+// the case in a plain variable outside the closure works around it.
+private let randomTrigger = TriggerType.random
+
 @MainActor
 enum RandomReminderScheduler {
     static let daysAhead = 5
 
     static func rescheduleAll(context: ModelContext) async {
         let descriptor = FetchDescriptor<Reminder>(
-            predicate: #Predicate<Reminder> { $0.isEnabled && $0.triggerType == TriggerType.random }
+            predicate: #Predicate<Reminder> { $0.isEnabled && $0.triggerType == randomTrigger }
         )
         guard let reminders = try? context.fetch(descriptor) else { return }
         for reminder in reminders {
@@ -56,7 +61,7 @@ enum RandomReminderScheduler {
     static func desiredOccurrences(
         for reminder: Reminder,
         from referenceDate: Date = .now,
-        daysAhead: Int = daysAhead,
+        daysAhead: Int = 5,
         calendar: Calendar = .current
     ) -> [(date: Date, dayKey: String)] {
         guard let frequency = reminder.randomFrequencyPerDay,
